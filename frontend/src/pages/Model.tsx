@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useApi, apiPost } from "../hooks/useApi";
 import { Brain, CheckCircle } from "lucide-react";
 
@@ -6,6 +6,14 @@ interface ModelStatus {
   trained_count: number;
   trained_tickers: string[];
   available_tickers: string[];
+}
+
+interface TrainingStatus {
+  is_training: boolean;
+  current_ticker: string | null;
+  queue: string[];
+  completed: string[];
+  failed: string[];
 }
 
 interface ModelRun {
@@ -21,8 +29,8 @@ interface ModelRun {
 
 export default function Model() {
   const { data: status, loading: sLoading, refetch } = useApi<ModelStatus>("/model/status");
-  const { data: runs, loading: rLoading } = useApi<ModelRun[]>("/model/runs");
-  const [training, setTraining] = useState(false);
+  const { data: runs, loading: rLoading, refetch: refetchRuns } = useApi<ModelRun[]>("/model/runs");
+  const { data: trainingStatus, refetch: refetchTrainingStatus } = useApi<TrainingStatus>("/model/training-status");
   const [selectedTickers, setSelectedTickers] = useState<string[]>([]);
   const [epochs, setEpochs] = useState(100);
   const [lstmUnits, setLstmUnits] = useState(50);
@@ -31,22 +39,29 @@ export default function Model() {
   const [includeTrends, setIncludeTrends] = useState(true);
   const [includeSentiment, setIncludeSentiment] = useState(true);
 
+  const isTraining = trainingStatus?.is_training ?? false;
+
+  useEffect(() => {
+    if (!isTraining) return;
+    const interval = setInterval(() => {
+      refetchTrainingStatus();
+      refetch();
+      refetchRuns();
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [isTraining]);
+
   const handleTrain = async () => {
-    setTraining(true);
-    try {
-      await apiPost("/model/train", {
-        tickers: selectedTickers.length ? selectedTickers : undefined,
-        epochs,
-        lstm_units: lstmUnits,
-        dropout,
-        include_wiki: includeWiki,
-        include_trends: includeTrends,
-        include_sentiment: includeSentiment,
-      });
-      setTimeout(refetch, 5000);
-    } finally {
-      setTraining(false);
-    }
+    await apiPost("/model/train", {
+      tickers: selectedTickers.length ? selectedTickers : undefined,
+      epochs,
+      lstm_units: lstmUnits,
+      dropout,
+      include_wiki: includeWiki,
+      include_trends: includeTrends,
+      include_sentiment: includeSentiment,
+    });
+    refetchTrainingStatus();
   };
 
   const toggleTicker = (t: string) => {
@@ -121,15 +136,32 @@ export default function Model() {
 
           <button
             onClick={handleTrain}
-            disabled={training}
+            disabled={isTraining}
             className="w-full py-2 bg-accent hover:bg-accent/80 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
           >
-            {training ? "Training started…" : selectedTickers.length ? `Train ${selectedTickers.length} tickers` : "Train first 10 tickers"}
+            {isTraining ? "Training running…" : selectedTickers.length ? `Train ${selectedTickers.length} tickers` : "Train first 10 tickers"}
           </button>
-          {training && (
-            <p className="text-xs text-slate-500 text-center">
-              Running in background — this may take 20–60 min per ticker.
-            </p>
+
+          {isTraining && trainingStatus && (
+            <div className="text-xs space-y-1.5 bg-bg border border-border rounded-lg p-3">
+              <p className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+                <span className="font-mono font-semibold text-accent-light">
+                  {trainingStatus.current_ticker}
+                </span>
+                <span className="text-slate-500">training now…</span>
+              </p>
+              <p className="text-slate-500">
+                Done: <span className="text-long">{trainingStatus.completed.length}</span>
+                {" · "}Queued: <span className="text-slate-400">{trainingStatus.queue.length}</span>
+                {trainingStatus.failed.length > 0 && (
+                  <> · Failed: <span className="text-short">{trainingStatus.failed.length}</span></>
+                )}
+              </p>
+              <p className="text-slate-600">
+                ~20–60 min per ticker — this view updates automatically.
+              </p>
+            </div>
           )}
         </div>
 
