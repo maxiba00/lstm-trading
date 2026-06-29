@@ -2,6 +2,7 @@ import asyncio
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
@@ -13,6 +14,21 @@ from model.train import train_ticker, train_all
 MODELS_DIR = Path(__file__).parent.parent / "models"
 
 router = APIRouter(prefix="/model", tags=["model"])
+
+
+class TrainRequest(BaseModel):
+    tickers: list[str] | None = None
+    start: str = "2014-01-01"
+    end: str = "2024-12-31"
+    step_size: int = 60
+    train_ratio: float = 0.7
+    epochs: int = 100
+    batch_size: int = 32
+    lstm_units: int = 50
+    dropout: float = 0.3
+    include_wiki: bool = True
+    include_trends: bool = True
+    include_sentiment: bool = True
 
 
 def _run_training(tickers: list, params: dict, db_url: str):
@@ -37,27 +53,16 @@ def _run_training(tickers: list, params: dict, db_url: str):
 
 @router.post("/train")
 def trigger_training(
+    req: TrainRequest,
     background_tasks: BackgroundTasks,
-    tickers: list[str] = None,
-    start: str = "2014-01-01",
-    end: str = "2024-12-31",
-    step_size: int = 60,
-    train_ratio: float = 0.7,
-    epochs: int = 100,
-    batch_size: int = 32,
-    lstm_units: int = 50,
-    dropout: float = 0.3,
-    include_wiki: bool = True,
-    include_trends: bool = True,
-    include_sentiment: bool = True,
     db: Session = Depends(get_db),
 ):
-    tickers = tickers or SP100_TICKERS[:10]  # default: first 10 for quick start
+    tickers = req.tickers or SP100_TICKERS[:10]  # default: first 10 for quick start
     params = dict(
-        start=start, end=end, step_size=step_size, train_ratio=train_ratio,
-        epochs=epochs, batch_size=batch_size, lstm_units=lstm_units,
-        dropout=dropout, include_wiki=include_wiki,
-        include_trends=include_trends, include_sentiment=include_sentiment,
+        start=req.start, end=req.end, step_size=req.step_size, train_ratio=req.train_ratio,
+        epochs=req.epochs, batch_size=req.batch_size, lstm_units=req.lstm_units,
+        dropout=req.dropout, include_wiki=req.include_wiki,
+        include_trends=req.include_trends, include_sentiment=req.include_sentiment,
     )
     from db.database import DATABASE_URL
     background_tasks.add_task(_run_training, tickers, params, DATABASE_URL)
