@@ -25,9 +25,7 @@ def run_daily_pipeline():
     from routers.settings import load_settings
     from model.predict import predict_next_day
     from trading.signal import generate_signals, Signal
-    from trading.alpaca_client import (
-        place_order, get_positions, get_account
-    )
+    from trading.paper_engine import place_order, get_positions, get_account
 
     db = SessionLocal()
     try:
@@ -85,7 +83,7 @@ def run_daily_pipeline():
 
         # 4. Check current position count before placing new trades
         try:
-            current_positions = get_positions()
+            current_positions = get_positions(db)
             n_open = len(current_positions)
         except Exception:
             n_open = 0
@@ -101,7 +99,7 @@ def run_daily_pipeline():
             side = "buy" if sig.signal == Signal.LONG else "sell"
             order = None
             try:
-                order = place_order(sig.ticker, side, pos_size)
+                order = place_order(sig.ticker, side, pos_size, db)
             except Exception as e:
                 logger.error(f"Trade execution failed for {sig.ticker}: {e}")
 

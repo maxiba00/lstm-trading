@@ -62,3 +62,38 @@ class Settings(Base):
     key = Column(String(64), unique=True, index=True)
     value = Column(Text)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PaperAccount(Base):
+    __tablename__ = "paper_account"
+
+    id = Column(Integer, primary_key=True)
+    cash = Column(Float, default=100_000.0)
+    starting_cash = Column(Float, default=100_000.0)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PaperPosition(Base):
+    __tablename__ = "paper_positions"
+
+    id = Column(Integer, primary_key=True)
+    ticker = Column(String(10), unique=True, index=True)
+    qty = Column(Float, default=0.0)
+    avg_entry_price = Column(Float)
+    opened_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PaperOrder(Base):
+    __tablename__ = "paper_orders"
+
+    id = Column(Integer, primary_key=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    filled_at = Column(DateTime, nullable=True)
+    ticker = Column(String(10), index=True)
+    side = Column(String(5))
+    notional = Column(Float)
+    qty = Column(Float)
+    fill_price = Column(Float, nullable=True)
+    status = Column(String(20), default="filled")
+    signal_id = Column(Integer, nullable=True)

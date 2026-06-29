@@ -1,4 +1,4 @@
-import { useApi } from "../hooks/useApi";
+import { useApi, apiPost } from "../hooks/useApi";
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip,
 } from "recharts";
@@ -27,8 +27,13 @@ interface Order {
 const COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4", "#8b5cf6"];
 
 export default function Portfolio() {
-  const { data: positions, loading: pLoading } = useApi<Position[]>("/trades/positions");
+  const { data: positions, loading: pLoading, refetch } = useApi<Position[]>("/trades/positions");
   const { data: orders, loading: oLoading } = useApi<Order[]>("/trades/orders");
+
+  const handleClose = async (ticker: string) => {
+    await apiPost(`/trades/close/${ticker}`);
+    refetch();
+  };
 
   const pieData = (positions ?? []).map((p) => ({
     name: p.ticker,
@@ -60,6 +65,7 @@ export default function Portfolio() {
                   <th className="text-right px-4 py-3">Current</th>
                   <th className="text-right px-4 py-3">Market Value</th>
                   <th className="text-right px-4 py-3">Unreal. P&L</th>
+                  <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody>
@@ -78,6 +84,14 @@ export default function Portfolio() {
                     <td className={`px-4 py-3 text-right font-semibold ${p.unrealized_pl >= 0 ? "text-long" : "text-short"}`}>
                       {p.unrealized_pl >= 0 ? "+" : ""}${p.unrealized_pl.toFixed(2)}
                       <span className="text-xs ml-1 opacity-70">({p.unrealized_plpc.toFixed(1)}%)</span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => handleClose(p.ticker)}
+                        className="text-xs px-2.5 py-1 rounded border border-short/40 text-short hover:bg-short/10 transition-colors"
+                      >
+                        Close
+                      </button>
                     </td>
                   </tr>
                 ))}
