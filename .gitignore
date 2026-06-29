@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.py[cod]
+*.keras
+*_scaler.pkl
+*_columns.txt
+models/
+node_modules/
+dist/
+.DS_Store
+*.xlsx
+*.csv
