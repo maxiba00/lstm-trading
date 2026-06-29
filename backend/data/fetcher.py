@@ -1,11 +1,9 @@
 """
 Data fetcher: yfinance (OHLCV + technicals), Wikimedia pageviews,
-pytrends (Google Trends), EODHD sentiment.
-Mirrors thesis inputs, adapted for S&P 500 / free APIs.
+pytrends (Google Trends), VADER sentiment from yfinance news headlines.
+All data sources are free — no paid API required.
 """
 
-import os
-import time
 import logging
 from datetime import datetime, timedelta
 from typing import Optional
@@ -15,10 +13,10 @@ import pandas as pd
 import requests
 import yfinance as yf
 from pytrends.request import TrendReq
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 logger = logging.getLogger(__name__)
-
-EODHD_API_KEY = os.getenv("EODHD_API_KEY", "")
+_vader = SentimentIntensityAnalyzer()
 
 SP100_TICKERS = [
     "AAPL", "MSFT", "AMZN", "NVDA", "GOOGL", "META", "TSLA", "BRK-B", "JPM", "UNH",
@@ -143,30 +141,42 @@ def fetch_google_trends(ticker: str, start: str, end: str) -> Optional[pd.Series
 
 
 def fetch_sentiment(ticker: str, start: str, end: str) -> Optional[pd.Series]:
-    """Fetch EODHD news sentiment score [-1, 1]."""
-    if not EODHD_API_KEY:
-        return None
+    """
+    Compute sentiment from yfinance news headlines using VADER.
+    Free, local, no API key required.
+    Returns daily compound score in [-1, 1].
+    """
     try:
-        url = (
-            f"https://eodhd.com/api/sentiments"
-            f"?s={ticker}&from={start}&to={end}"
-            f"&api_token={EODHD_API_KEY}&fmt=json"
-        )
-        resp = requests.get(url, timeout=15)
-        if resp.status_code != 200:
+        stock = yf.Ticker(ticker)
+        news = stock.news
+        if not news:
             return None
-        data = resp.json()
-        records = {}
-        for symbol_data in data.values():
-            for item in symbol_data:
-                date = pd.to_datetime(item.get("date"))
-                score = item.get("normalized")
-                if date and score is not None:
-                    records[date] = score
+
+        records = []
+        for item in news:
+            # yfinance news items have 'providerPublishTime' (unix timestamp) and 'title'
+            ts = item.get("providerPublishTime")
+            title = item.get("title", "")
+            summary = item.get("summary", "")
+            text = f"{title}. {summary}".strip()
+            if not ts or not text:
+                continue
+            date = pd.to_datetime(ts, unit="s").normalize()
+            score = _vader.polarity_scores(text)["compound"]
+            records.append({"date": date, "score": score})
+
         if not records:
             return None
-        series = pd.Series(records, name="sentiment")
-        series = series.resample("D").mean().ffill()
+
+        df = pd.DataFrame(records)
+        # Average all headlines per day
+        series = df.groupby("date")["score"].mean()
+        series.index = pd.DatetimeIndex(series.index)
+
+        # Reindex to full date range and forward-fill gaps
+        date_range = pd.date_range(start=start, end=end, freq="D")
+        series = series.reindex(date_range).ffill().fillna(0)
+        series.name = "sentiment"
         return series
     except Exception as e:
         logger.error(f"Sentiment fetch failed for {ticker}: {e}")

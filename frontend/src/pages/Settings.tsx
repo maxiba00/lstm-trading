@@ -10,7 +10,6 @@ interface AppSettings {
   max_positions: number;
   stop_loss_pct: number;
   run_time: string;
-  eodhd_api_key: string;
 }
 
 function Slider({
@@ -187,17 +186,6 @@ export default function Settings() {
           />
         </div>
 
-        <div>
-          <label className="text-sm font-medium text-slate-200">EODHD API Key</label>
-          <p className="text-xs text-slate-500 mt-0.5">For news sentiment data.</p>
-          <input
-            type="password"
-            value={form.eodhd_api_key}
-            onChange={(e) => setForm({ ...form, eodhd_api_key: e.target.value })}
-            placeholder="Your EODHD API key"
-            className="mt-2 w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent font-mono"
-          />
-        </div>
       </div>
 
       {/* Current thresholds summary */}

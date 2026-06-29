@@ -22,7 +22,6 @@ DEFAULTS = {
     "stop_loss_pct": 2.0,           # stop loss in %
     "tickers": [],                   # empty = use all trained tickers
     "run_time": "16:30",            # daily run time (after US market close, ET)
-    "eodhd_api_key": "",
 }
 
 
@@ -35,7 +34,6 @@ class SettingsUpdate(BaseModel):
     stop_loss_pct: float = None
     tickers: list[str] = None
     run_time: str = None
-    eodhd_api_key: str = None
 
 
 def _get(key: str, db: Session):
