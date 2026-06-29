@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useApi } from "../hooks/useApi";
+import { useApi, apiPost } from "../hooks/useApi";
 import SignalBadge from "../components/SignalBadge";
 
 interface SignalRow {
@@ -17,13 +17,39 @@ interface SignalRow {
   created_at: string;
 }
 
+interface AppSettings {
+  position_size_usd: number;
+}
+
 export default function Signals() {
   const [filter, setFilter] = useState("ALL");
   const { data, loading } = useApi<SignalRow[]>("/signals/?limit=200");
+  const { data: settings } = useApi<AppSettings>("/settings/");
+  const [placingId, setPlacingId] = useState<number | null>(null);
+  const [placedIds, setPlacedIds] = useState<number[]>([]);
 
   const rows = (data ?? []).filter(
     (s) => filter === "ALL" || s.signal === filter
   );
+
+  const handleOrder = async (s: SignalRow) => {
+    setPlacingId(s.id);
+    try {
+      const res = await apiPost("/trades/order", {
+        ticker: s.ticker,
+        side: s.signal === "LONG" ? "buy" : "sell",
+        notional: settings?.position_size_usd ?? 1000,
+        signal_id: s.id,
+      });
+      if (!res?.error) {
+        setPlacedIds((prev) => [...prev, s.id]);
+      } else {
+        alert(res.error);
+      }
+    } finally {
+      setPlacingId(null);
+    }
+  };
 
   return (
     <div className="p-6 space-y-4">
@@ -62,6 +88,7 @@ export default function Signals() {
                 <th className="text-right px-4 py-3">MC Std</th>
                 <th className="text-left px-4 py-3">Reason</th>
                 <th className="text-right px-4 py-3">Date</th>
+                <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody>
@@ -90,11 +117,28 @@ export default function Signals() {
                   <td className="px-4 py-3 text-right text-slate-500 text-xs">
                     {new Date(s.created_at).toLocaleDateString()}
                   </td>
+                  <td className="px-4 py-3 text-right">
+                    {s.signal === "HOLD" ? null : placedIds.includes(s.id) ? (
+                      <span className="text-xs text-long">Placed</span>
+                    ) : (
+                      <button
+                        onClick={() => handleOrder(s)}
+                        disabled={placingId === s.id}
+                        className={`text-xs px-2.5 py-1 rounded border transition-colors disabled:opacity-50 ${
+                          s.signal === "LONG"
+                            ? "border-long/40 text-long hover:bg-long/10"
+                            : "border-short/40 text-short hover:bg-short/10"
+                        }`}
+                      >
+                        {placingId === s.id ? "…" : "Order"}
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={10} className="px-4 py-8 text-center text-slate-500">
                     No signals yet. Run the pipeline to generate signals.
                   </td>
                 </tr>
