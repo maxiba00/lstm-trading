@@ -36,8 +36,9 @@ class TrainRequest(BaseModel):
     lstm_units: int = 50
     dropout: float = 0.3
     include_wiki: bool = True
-    include_trends: bool = True
+    include_trends: bool = False
     include_sentiment: bool = True
+    include_fred: bool = True
 
 
 def _run_training(tickers: list, params: dict, db_url: str):
@@ -89,6 +90,7 @@ def trigger_training(
         epochs=req.epochs, batch_size=req.batch_size, lstm_units=req.lstm_units,
         dropout=req.dropout, include_wiki=req.include_wiki,
         include_trends=req.include_trends, include_sentiment=req.include_sentiment,
+        include_fred=req.include_fred,
     )
     from db.database import DATABASE_URL
     background_tasks.add_task(_run_training, tickers, params, DATABASE_URL)

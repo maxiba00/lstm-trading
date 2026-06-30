@@ -38,6 +38,7 @@ export default function Model() {
   const [includeWiki, setIncludeWiki] = useState(true);
   const [includeTrends, setIncludeTrends] = useState(false);
   const [includeSentiment, setIncludeSentiment] = useState(true);
+  const [includeFred, setIncludeFred] = useState(true);
 
   const isTraining = trainingStatus?.is_training ?? false;
 
@@ -60,6 +61,7 @@ export default function Model() {
       include_wiki: includeWiki,
       include_trends: includeTrends,
       include_sentiment: includeSentiment,
+      include_fred: includeFred,
     });
     refetchTrainingStatus();
   };
@@ -121,6 +123,7 @@ export default function Model() {
               { label: "Wikipedia Pageviews", val: includeWiki, set: setIncludeWiki },
               { label: "Google Trends (rate-limited, langsam)", val: includeTrends, set: setIncludeTrends },
               { label: "News Sentiment", val: includeSentiment, set: setIncludeSentiment },
+              { label: "FRED Makro (VIX, Zinsen, 10Y)", val: includeFred, set: setIncludeFred },
             ].map(({ label, val, set }) => (
               <label key={label} className="flex items-center gap-2 cursor-pointer">
                 <input

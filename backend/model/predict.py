@@ -63,12 +63,14 @@ def predict_next_day(
     include_wiki = columns is not None and "wiki_views" in columns
     include_trends = columns is not None and "google_trends" in columns
     include_sentiment = columns is not None and "sentiment" in columns
+    include_fred = columns is not None and "vix" in columns
 
     df = build_feature_dataframe(
         ticker, start, end,
         include_wiki=include_wiki,
         include_trends=include_trends,
         include_sentiment=include_sentiment,
+        include_fred=include_fred,
     )
     if df is None or len(df) < STEP_SIZE:
         logger.error(f"Not enough data for inference: {ticker}")

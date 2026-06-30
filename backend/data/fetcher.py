@@ -5,6 +5,7 @@ All data sources are free — no paid API required.
 """
 
 import logging
+import os
 import time
 from datetime import datetime, timedelta
 from typing import Optional
@@ -21,6 +22,10 @@ _vader = SentimentIntensityAnalyzer()
 
 # Simple in-memory cache for Google Trends: {ticker: (date_str, Series)}
 _trends_cache: dict = {}
+
+# FRED cache: {series_id: (date_str, Series)}
+_fred_cache: dict = {}
+FRED_API_KEY = os.getenv("FRED_API_KEY", "")
 
 SP100_TICKERS = [
     "AAPL", "MSFT", "AMZN", "NVDA", "GOOGL", "META", "TSLA", "BRK-B", "JPM", "UNH",
@@ -162,6 +167,46 @@ def fetch_google_trends(ticker: str, start: str, end: str) -> Optional[pd.Series
     return None
 
 
+def fetch_fred_series(series_id: str, start: str, end: str) -> Optional[pd.Series]:
+    """Fetch a FRED time series (VIX, Fed Funds Rate, 10Y Treasury, etc.)."""
+    if not FRED_API_KEY:
+        return None
+
+    today = datetime.today().strftime("%Y-%m-%d")
+    cache_key = f"{series_id}_{start}_{end}"
+    if cache_key in _fred_cache:
+        cached_date, cached_series = _fred_cache[cache_key]
+        if cached_date == today:
+            return cached_series
+
+    url = (
+        f"https://api.stlouisfed.org/fred/series/observations"
+        f"?series_id={series_id}&api_key={FRED_API_KEY}&file_type=json"
+        f"&observation_start={start}&observation_end={end}"
+    )
+    try:
+        resp = requests.get(url, timeout=10)
+        if resp.status_code != 200:
+            logger.error(f"FRED fetch failed for {series_id}: HTTP {resp.status_code}")
+            return None
+        observations = resp.json().get("observations", [])
+        records = {}
+        for obs in observations:
+            try:
+                records[pd.to_datetime(obs["date"])] = float(obs["value"])
+            except (ValueError, KeyError):
+                continue  # skip "." missing values
+        if not records:
+            return None
+        series = pd.Series(records, name=series_id.lower())
+        series = series.resample("D").ffill()
+        _fred_cache[cache_key] = (today, series)
+        return series
+    except Exception as e:
+        logger.error(f"FRED fetch failed for {series_id}: {e}")
+        return None
+
+
 def fetch_sentiment(ticker: str, start: str, end: str) -> Optional[pd.Series]:
     """
     Compute sentiment from yfinance news headlines using VADER.
@@ -212,10 +257,11 @@ def build_feature_dataframe(
     include_wiki: bool = True,
     include_trends: bool = False,
     include_sentiment: bool = True,
+    include_fred: bool = True,
 ) -> Optional[pd.DataFrame]:
     """
     Assemble full feature matrix for a ticker.
-    Columns: Close, SMA50, MACD, RSI, [wiki_views], [google_trends], [sentiment]
+    Columns: Close, SMA50, MACD, RSI, [wiki_views], [google_trends], [sentiment], [vix, dff, dgs10]
     """
     fin = fetch_financial_data(ticker, start, end)
     if fin is None:
@@ -245,6 +291,14 @@ def build_feature_dataframe(
         if sentiment is not None:
             df = df.join(sentiment, how="left")
             df["sentiment"] = df["sentiment"].ffill().fillna(0)
+
+    if include_fred and FRED_API_KEY:
+        for series_id, col_name in [("VIXCLS", "vix"), ("DFF", "dff"), ("DGS10", "dgs10")]:
+            series = fetch_fred_series(series_id, start, end)
+            if series is not None:
+                series.name = col_name
+                df = df.join(series, how="left")
+                df[col_name] = df[col_name].ffill().fillna(0)
 
     df.ffill(inplace=True)
     df.dropna(inplace=True)
