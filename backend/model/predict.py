@@ -37,7 +37,7 @@ def _load_model_and_scaler(ticker: str):
 
 def predict_next_day(
     ticker: str,
-    lookback_days: int = 90,
+    lookback_days: int = 200,
     mc_samples: int = MC_SAMPLES,
 ) -> Optional[dict]:
     """
@@ -57,7 +57,7 @@ def predict_next_day(
         return None
 
     end = datetime.today().strftime("%Y-%m-%d")
-    start = (datetime.today() - timedelta(days=lookback_days + 30)).strftime("%Y-%m-%d")
+    start = (datetime.today() - timedelta(days=lookback_days + 60)).strftime("%Y-%m-%d")
 
     # Only fetch features the model was actually trained on
     include_wiki = columns is not None and "wiki_views" in columns
