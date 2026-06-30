@@ -42,13 +42,15 @@ export default function Model() {
 
   const isTraining = trainingStatus?.is_training ?? false;
 
+  // Always poll training status; also refresh model list when training completes
   useEffect(() => {
-    if (!isTraining) return;
     const interval = setInterval(() => {
       refetchTrainingStatus();
-      refetch();
-      refetchRuns();
-    }, 4000);
+      if (isTraining) {
+        refetch();
+        refetchRuns();
+      }
+    }, 3000);
     return () => clearInterval(interval);
   }, [isTraining]);
 
