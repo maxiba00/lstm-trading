@@ -28,9 +28,15 @@ export default function Signals() {
   const [placingId, setPlacingId] = useState<number | null>(null);
   const [placedIds, setPlacedIds] = useState<number[]>([]);
 
-  const rows = (data ?? []).filter(
-    (s) => filter === "ALL" || s.signal === filter
-  );
+  const allRows = data ?? [];
+  const holdRows = allRows.filter((s) => s.signal === "HOLD");
+  const activeRows = allRows.filter((s) => s.signal !== "HOLD");
+
+  const rows = filter === "HOLD"
+    ? holdRows
+    : filter === "ALL"
+    ? activeRows
+    : allRows.filter((s) => s.signal === filter);
 
   const handleOrder = async (s: SignalRow) => {
     setPlacingId(s.id);
@@ -136,10 +142,30 @@ export default function Signals() {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && (
+              {filter !== "HOLD" && holdRows.length > 0 && (
+                <tr className="border-b border-border/30 bg-border/5">
+                  <td colSpan={10} className="px-4 py-2 text-xs text-slate-500 italic">
+                    {holdRows.length} signal{holdRows.length > 1 ? "s" : ""} on HOLD / below threshold —{" "}
+                    <button
+                      onClick={() => setFilter("HOLD")}
+                      className="underline hover:text-slate-300"
+                    >
+                      details anzeigen
+                    </button>
+                  </td>
+                </tr>
+              )}
+              {rows.length === 0 && filter !== "HOLD" && (
                 <tr>
                   <td colSpan={10} className="px-4 py-8 text-center text-slate-500">
                     No signals yet. Run the pipeline to generate signals.
+                  </td>
+                </tr>
+              )}
+              {rows.length === 0 && filter === "HOLD" && (
+                <tr>
+                  <td colSpan={10} className="px-4 py-8 text-center text-slate-500">
+                    Keine HOLD-Signals vorhanden.
                   </td>
                 </tr>
               )}
