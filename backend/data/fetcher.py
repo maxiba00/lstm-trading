@@ -210,7 +210,7 @@ def build_feature_dataframe(
     start: str,
     end: str,
     include_wiki: bool = True,
-    include_trends: bool = True,
+    include_trends: bool = False,
     include_sentiment: bool = True,
 ) -> Optional[pd.DataFrame]:
     """

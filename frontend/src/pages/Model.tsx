@@ -36,7 +36,7 @@ export default function Model() {
   const [lstmUnits, setLstmUnits] = useState(50);
   const [dropout, setDropout] = useState(0.3);
   const [includeWiki, setIncludeWiki] = useState(true);
-  const [includeTrends, setIncludeTrends] = useState(true);
+  const [includeTrends, setIncludeTrends] = useState(false);
   const [includeSentiment, setIncludeSentiment] = useState(true);
 
   const isTraining = trainingStatus?.is_training ?? false;
@@ -119,7 +119,7 @@ export default function Model() {
             <label className="text-xs text-slate-500 uppercase tracking-wider">Features</label>
             {[
               { label: "Wikipedia Pageviews", val: includeWiki, set: setIncludeWiki },
-              { label: "Google Trends", val: includeTrends, set: setIncludeTrends },
+              { label: "Google Trends (rate-limited, langsam)", val: includeTrends, set: setIncludeTrends },
               { label: "News Sentiment", val: includeSentiment, set: setIncludeSentiment },
             ].map(({ label, val, set }) => (
               <label key={label} className="flex items-center gap-2 cursor-pointer">
