@@ -52,6 +52,10 @@ def fetch_financial_data(ticker: str, start: str, end: str) -> Optional[pd.DataF
         if df.empty:
             return None
 
+        # yfinance >= 0.2.50 returns MultiIndex columns when group_by is default
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+
         df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
         df.columns = ["Open", "High", "Low", "Close", "Volume"]
         df.index.name = "Date"
@@ -73,7 +77,7 @@ def fetch_financial_data(ticker: str, start: str, end: str) -> Optional[pd.DataF
         rs = avg_gain / (avg_loss + 1e-10)
         df["RSI"] = 100 - (100 / (1 + rs))
 
-        df.fillna(method="ffill", inplace=True)
+        df.ffill(inplace=True)
         df.dropna(inplace=True)
         return df
     except Exception as e:
@@ -205,7 +209,7 @@ def build_feature_dataframe(
         wiki = fetch_wikipedia_pageviews(ticker, start, end)
         if wiki is not None:
             df = df.join(wiki, how="left")
-            df["wiki_views"] = df["wiki_views"].fillna(method="ffill").fillna(0)
+            df["wiki_views"] = df["wiki_views"].ffill().fillna(0)
             # Normalize to [0,1]
             max_val = df["wiki_views"].max()
             if max_val > 0:
@@ -215,15 +219,15 @@ def build_feature_dataframe(
         trends = fetch_google_trends(ticker, start, end)
         if trends is not None:
             df = df.join(trends, how="left")
-            df["google_trends"] = df["google_trends"].fillna(method="ffill").fillna(0)
+            df["google_trends"] = df["google_trends"].ffill().fillna(0)
             df["google_trends"] /= 100.0  # pytrends gives 0-100
 
     if include_sentiment:
         sentiment = fetch_sentiment(ticker, start, end)
         if sentiment is not None:
             df = df.join(sentiment, how="left")
-            df["sentiment"] = df["sentiment"].fillna(method="ffill").fillna(0)
+            df["sentiment"] = df["sentiment"].ffill().fillna(0)
 
-    df.fillna(method="ffill", inplace=True)
+    df.ffill(inplace=True)
     df.dropna(inplace=True)
     return df
