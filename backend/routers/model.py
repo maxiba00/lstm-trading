@@ -62,6 +62,8 @@ def _run_training(tickers: list, params: dict, db_url: str):
                 logger.error(f"Training failed for {ticker}: {e}")
                 result = None
             if result:
+                # Delete old run for this ticker before inserting new one
+                db.query(ModelRun).filter(ModelRun.ticker == ticker).delete()
                 run = ModelRun(**result, params=params)
                 db.add(run)
                 db.commit()

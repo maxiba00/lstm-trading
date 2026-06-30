@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { useApi, apiPost } from "../hooks/useApi";
 import StatCard from "../components/StatCard";
@@ -33,15 +34,32 @@ interface SignalStats {
 export default function Dashboard() {
   const { data: account, loading: aLoading } = useApi<Account>("/trades/account");
   const { data: latest, loading: sLoading, refetch } = useApi<SignalRow[]>("/signals/latest");
-  const { data: stats } = useApi<SignalStats>("/signals/stats");
+  const { data: stats, refetch: refetchStats } = useApi<SignalStats>("/signals/stats");
+  const [pipelineState, setPipelineState] = useState<"idle" | "running" | "done" | "error">("idle");
 
   const chartData = stats
     ? Object.entries(stats).map(([k, v]) => ({ name: k, count: v }))
     : [];
 
   const handleRunNow = async () => {
-    await apiPost("/pipeline/run-now");
-    setTimeout(refetch, 1000);
+    setPipelineState("running");
+    try {
+      await apiPost("/pipeline/run-now");
+      // Poll until pipeline finishes (signals appear)
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts++;
+        refetch();
+        refetchStats();
+        if (attempts >= 30) {
+          clearInterval(poll);
+          setPipelineState("done");
+        }
+      }, 3000);
+      setPipelineState("done");
+    } catch {
+      setPipelineState("error");
+    }
   };
 
   const fmt = (n: number, decimals = 2) =>
@@ -51,13 +69,25 @@ export default function Dashboard() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Dashboard</h1>
-        <button
-          onClick={handleRunNow}
-          className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent/80 rounded-lg text-sm font-medium transition-colors"
-        >
-          <RefreshCw size={14} />
-          Run Pipeline Now
-        </button>
+        <div className="flex items-center gap-3">
+          {pipelineState === "running" && (
+            <span className="text-xs text-slate-400 animate-pulse">Pipeline läuft… (~1 Min)</span>
+          )}
+          {pipelineState === "done" && (
+            <span className="text-xs text-long">✓ Signals aktualisiert</span>
+          )}
+          {pipelineState === "error" && (
+            <span className="text-xs text-short">Fehler — siehe Logs</span>
+          )}
+          <button
+            onClick={handleRunNow}
+            disabled={pipelineState === "running"}
+            className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent/80 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+          >
+            <RefreshCw size={14} className={pipelineState === "running" ? "animate-spin" : ""} />
+            Run Pipeline Now
+          </button>
+        </div>
       </div>
 
       {/* Account stats */}
