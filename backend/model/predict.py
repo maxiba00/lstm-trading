@@ -59,7 +59,17 @@ def predict_next_day(
     end = datetime.today().strftime("%Y-%m-%d")
     start = (datetime.today() - timedelta(days=lookback_days + 30)).strftime("%Y-%m-%d")
 
-    df = build_feature_dataframe(ticker, start, end)
+    # Only fetch features the model was actually trained on
+    include_wiki = columns is not None and "wiki_views" in columns
+    include_trends = columns is not None and "google_trends" in columns
+    include_sentiment = columns is not None and "sentiment" in columns
+
+    df = build_feature_dataframe(
+        ticker, start, end,
+        include_wiki=include_wiki,
+        include_trends=include_trends,
+        include_sentiment=include_sentiment,
+    )
     if df is None or len(df) < STEP_SIZE:
         logger.error(f"Not enough data for inference: {ticker}")
         return None

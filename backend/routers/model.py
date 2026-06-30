@@ -36,7 +36,7 @@ class TrainRequest(BaseModel):
     lstm_units: int = 50
     dropout: float = 0.3
     include_wiki: bool = True
-    include_trends: bool = True
+    include_trends: bool = False  # Google Trends hit rate limits in production; off by default
     include_sentiment: bool = True
 
 
