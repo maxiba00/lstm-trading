@@ -56,8 +56,9 @@ def train_ticker(
     lstm_units: int = 50,
     dropout: float = 0.3,
     include_wiki: bool = True,
-    include_trends: bool = True,
+    include_trends: bool = False,
     include_sentiment: bool = True,
+    include_fred: bool = True,
 ) -> Optional[dict]:
     """
     Train LSTM for one ticker. Returns metrics dict or None on failure.
@@ -70,6 +71,7 @@ def train_ticker(
         include_wiki=include_wiki,
         include_trends=include_trends,
         include_sentiment=include_sentiment,
+        include_fred=include_fred,
     )
     if df is None or len(df) < step_size + 10:
         logger.error(f"Insufficient data for {ticker}")
