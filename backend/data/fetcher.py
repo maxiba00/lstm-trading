@@ -5,6 +5,7 @@ All data sources are free — no paid API required.
 """
 
 import logging
+import time
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -17,6 +18,9 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 logger = logging.getLogger(__name__)
 _vader = SentimentIntensityAnalyzer()
+
+# Simple in-memory cache for Google Trends: {ticker: (date_str, Series)}
+_trends_cache: dict = {}
 
 SP100_TICKERS = [
     "AAPL", "MSFT", "AMZN", "NVDA", "GOOGL", "META", "TSLA", "BRK-B", "JPM", "UNH",
@@ -117,7 +121,7 @@ def fetch_wikipedia_pageviews(ticker: str, start: str, end: str) -> Optional[pd.
 
 
 def fetch_google_trends(ticker: str, start: str, end: str) -> Optional[pd.Series]:
-    """Fetch Google Trends relative hit rate for a ticker."""
+    """Fetch Google Trends relative hit rate for a ticker, with cache and retry."""
     company_names = {
         "AAPL": "Apple iPhone", "MSFT": "Microsoft", "AMZN": "Amazon",
         "NVDA": "Nvidia GPU", "GOOGL": "Google", "META": "Meta Facebook",
@@ -130,18 +134,32 @@ def fetch_google_trends(ticker: str, start: str, end: str) -> Optional[pd.Series
     if not keyword:
         return None
 
-    try:
-        pytrends = TrendReq(hl="en-US", tz=360, timeout=(10, 25))
-        pytrends.build_payload([keyword], timeframe=f"{start} {end}", geo="")
-        df = pytrends.interest_over_time()
-        if df.empty:
-            return None
-        series = df[keyword].resample("D").ffill()
-        series.name = "google_trends"
-        return series
-    except Exception as e:
-        logger.error(f"Google Trends fetch failed for {ticker}: {e}")
-        return None
+    # Return cached result if fetched today for same date range
+    today = datetime.today().strftime("%Y-%m-%d")
+    cache_key = f"{ticker}_{start}_{end}"
+    if cache_key in _trends_cache:
+        cached_date, cached_series = _trends_cache[cache_key]
+        if cached_date == today:
+            return cached_series
+
+    for attempt in range(3):
+        try:
+            if attempt > 0:
+                time.sleep(10 * attempt)  # 10s, 20s backoff
+            pytrends = TrendReq(hl="en-US", tz=360, timeout=(10, 25))
+            pytrends.build_payload([keyword], timeframe=f"{start} {end}", geo="")
+            df = pytrends.interest_over_time()
+            if df.empty:
+                return None
+            series = df[keyword].resample("D").ffill()
+            series.name = "google_trends"
+            _trends_cache[cache_key] = (today, series)
+            return series
+        except Exception as e:
+            logger.warning(f"Google Trends attempt {attempt+1} failed for {ticker}: {e}")
+
+    logger.error(f"Google Trends failed after 3 attempts for {ticker} — skipping")
+    return None
 
 
 def fetch_sentiment(ticker: str, start: str, end: str) -> Optional[pd.Series]:
