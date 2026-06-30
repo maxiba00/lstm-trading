@@ -113,9 +113,9 @@ def train_ticker(
     preds = scaler.inverse_transform(np.hstack([preds_scaled, pad]))[:, 0]
     actual = scaler.inverse_transform(np.hstack([y_test.reshape(-1, 1), pad]))[:, 0]
 
-    # Directional accuracy: did we get the direction of next-day move right?
-    pred_dir = np.sign(np.diff(np.concatenate([[actual[0]], preds])))
-    actual_dir = np.sign(np.diff(actual))
+    # Directional accuracy: did predicted next-day price move in the right direction?
+    pred_dir = np.sign(preds[1:] - actual[:-1])
+    actual_dir = np.sign(actual[1:] - actual[:-1])
     dir_accuracy = float(np.mean(pred_dir == actual_dir))
 
     # Save model and scaler
