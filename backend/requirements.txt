@@ -13,7 +13,7 @@ numpy==1.26.4
 pandas==2.2.2
 
 # Data sources
-yfinance==0.2.40
+yfinance==0.2.61
 pytrends==4.9.2
 requests==2.32.2
 vaderSentiment==3.3.2
