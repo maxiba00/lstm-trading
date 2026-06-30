@@ -40,11 +40,11 @@ export default function Signals() {
         side: s.signal === "LONG" ? "buy" : "sell",
         notional: settings?.position_size_usd ?? 1000,
         signal_id: s.id,
-      });
+      }) as Record<string, unknown>;
       if (!res?.error) {
         setPlacedIds((prev) => [...prev, s.id]);
       } else {
-        alert(res.error);
+        alert(res.error as string);
       }
     } finally {
       setPlacingId(null);
