@@ -103,12 +103,12 @@ def training_status():
 
 
 @router.get("/status")
-def model_status():
-    """Which tickers have trained models."""
-    trained = [p.stem for p in MODELS_DIR.glob("*.keras")]
+def model_status(db: Session = Depends(get_db)):
+    """Which tickers have trained models (based on DB runs, not legacy .keras files)."""
+    trained = [r.ticker for r in db.query(ModelRun.ticker).distinct().all()]
     return {
         "trained_count": len(trained),
-        "trained_tickers": sorted(trained),
+        "trained_tickers": trained,
         "available_tickers": SP100_TICKERS,
     }
 
