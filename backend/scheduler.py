@@ -89,31 +89,63 @@ def run_daily_pipeline():
             db.add(row)
         db.commit()
 
-        # 4. Auto take-profit: close positions that have reached stop_loss_pct gain
-        take_profit_pct = settings.get("stop_loss_pct", 2.0)
+        # Build signal lookup: ticker → Signal object
+        signal_map = {sig.ticker: sig for sig in trade_signals}
+
+        # 4. Manage existing positions based on today's signal
         try:
             open_positions = get_positions(db)
-            for pos in open_positions:
-                if pos["unrealized_plpc"] >= take_profit_pct:
-                    close_position(pos["ticker"], db)
-                    logger.info(f"Take-profit triggered for {pos['ticker']} (+{pos['unrealized_plpc']:.1f}%)")
-                elif pos["unrealized_plpc"] <= -take_profit_pct:
-                    close_position(pos["ticker"], db)
-                    logger.info(f"Stop-loss triggered for {pos['ticker']} ({pos['unrealized_plpc']:.1f}%)")
-        except Exception as e:
-            logger.error(f"Take-profit/stop-loss check failed: {e}")
+        except Exception:
+            open_positions = []
 
-        # 5. Check current position count before placing new trades
+        tickers_with_position = set()
+        for pos in open_positions:
+            ticker = pos["ticker"]
+            tickers_with_position.add(ticker)
+            sig = signal_map.get(ticker)
+
+            if sig is None:
+                # No model for this ticker today — hold
+                continue
+
+            pos_side = pos["side"]  # "long" or "short"
+            new_signal = sig.signal
+
+            if pos_side == "long":
+                if new_signal == Signal.LONG:
+                    logger.info(f"HOLD position {ticker} — LONG signal repeats")
+                elif new_signal == Signal.HOLD:
+                    close_position(ticker, db)
+                    logger.info(f"Closed LONG {ticker} — signal turned HOLD")
+                elif new_signal == Signal.SHORT:
+                    close_position(ticker, db)
+                    logger.info(f"Closed LONG {ticker} — signal flipped to SHORT")
+                    # Open short after closing long (handled below as new position)
+            elif pos_side == "short":
+                if new_signal == Signal.SHORT:
+                    logger.info(f"HOLD position {ticker} — SHORT signal repeats")
+                elif new_signal == Signal.HOLD:
+                    close_position(ticker, db)
+                    logger.info(f"Closed SHORT {ticker} — signal turned HOLD")
+                elif new_signal == Signal.LONG:
+                    close_position(ticker, db)
+                    logger.info(f"Closed SHORT {ticker} — signal flipped to LONG")
+                    # Open long after closing short (handled below as new position)
+
+        # 5. Open new positions for actionable signals (no existing position, or just closed)
         try:
             current_positions = get_positions(db)
             n_open = len(current_positions)
+            open_tickers = {p["ticker"] for p in current_positions}
         except Exception:
             n_open = 0
+            open_tickers = set()
 
-        # 6. Execute actionable signals
         for sig in trade_signals:
             if sig.signal == Signal.HOLD:
                 continue
+            if sig.ticker in open_tickers:
+                continue  # position still open (same direction held)
             if n_open >= max_pos:
                 logger.info(f"Max positions ({max_pos}) reached — skipping {sig.ticker}")
                 continue
@@ -136,7 +168,7 @@ def run_daily_pipeline():
                 db.add(trade_row)
                 db.commit()
                 n_open += 1
-                logger.info(f"Executed {side} {sig.ticker} ${pos_size}")
+                logger.info(f"Opened {side} {sig.ticker} ${pos_size}")
 
         logger.info(f"Pipeline complete — {len(trade_signals)} signals, {n_open} positions")
 
