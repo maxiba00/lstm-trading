@@ -54,9 +54,15 @@ export default function Model() {
     return () => clearInterval(interval);
   }, [isTraining]);
 
+  const untrainedTickers = (status?.available_tickers ?? []).filter(
+    (t) => !(status?.trained_tickers ?? []).includes(t)
+  );
+  const nextBatch = untrainedTickers.slice(0, 10);
+
   const handleTrain = async () => {
+    const tickers = selectedTickers.length ? selectedTickers : nextBatch.length ? nextBatch : undefined;
     await apiPost("/model/train", {
-      tickers: selectedTickers.length ? selectedTickers : undefined,
+      tickers,
       epochs,
       lstm_units: lstmUnits,
       dropout,
@@ -144,7 +150,13 @@ export default function Model() {
             disabled={isTraining}
             className="w-full py-2 bg-accent hover:bg-accent/80 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
           >
-            {isTraining ? "Training running…" : selectedTickers.length ? `Train ${selectedTickers.length} tickers` : "Train first 10 tickers"}
+            {isTraining
+              ? "Training running…"
+              : selectedTickers.length
+              ? `Train ${selectedTickers.length} selected`
+              : nextBatch.length
+              ? `Train next ${nextBatch.length} untrained`
+              : "All models trained ✓"}
           </button>
 
           {isTraining && trainingStatus && (
@@ -210,7 +222,7 @@ export default function Model() {
               })}
             </div>
           )}
-          <p className="text-xs text-slate-600 mt-3">Green = trained. Click to select for (re)training. Empty selection = first 10.</p>
+          <p className="text-xs text-slate-600 mt-3">Grün = trainiert. Klicken zum (Neu-)Trainieren. Kein Selection = nächste {nextBatch.length} untrainierte.</p>
         </div>
       </div>
 
