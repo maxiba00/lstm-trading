@@ -194,9 +194,9 @@ export default function Dashboard() {
           </ResponsiveContainer>
           {dist && (
             <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs text-slate-500">
-              <div>Ø Return<br /><span className={`font-semibold ${dist.avg_return_pct >= 0 ? "text-long" : "text-short"}`}>{dist.avg_return_pct >= 0 ? "+" : ""}{dist.avg_return_pct.toFixed(2)}%</span></div>
-              <div>Ø Konfidenz<br /><span className="font-semibold text-slate-300">{(dist.avg_confidence * 100).toFixed(0)}%</span></div>
-              <div>Alignment<br /><span className="font-semibold text-slate-300">{dist.signal_alignment_pct}%</span></div>
+              <div>Ø Return<br /><span className={`font-semibold ${(dist.avg_return_pct ?? 0) >= 0 ? "text-long" : "text-short"}`}>{(dist.avg_return_pct ?? 0) >= 0 ? "+" : ""}{(dist.avg_return_pct ?? 0).toFixed(2)}%</span></div>
+              <div>Ø Konfidenz<br /><span className="font-semibold text-slate-300">{((dist.avg_confidence ?? 0) * 100).toFixed(0)}%</span></div>
+              <div>Alignment<br /><span className="font-semibold text-slate-300">{dist.signal_alignment_pct ?? "—"}%</span></div>
             </div>
           )}
         </div>
