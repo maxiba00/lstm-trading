@@ -25,7 +25,7 @@ def run_daily_pipeline():
     from routers.settings import load_settings
     from model.predict import predict_next_day
     from trading.signal import generate_signals, Signal
-    from trading.paper_engine import place_order, get_positions, get_account
+    from trading.paper_engine import place_order, get_positions, get_account, close_position
 
     db = SessionLocal()
     try:
@@ -64,8 +64,16 @@ def run_daily_pipeline():
             allow_short=allow_short,
         )
 
-        # 3. Persist all signals
+        # 3. Persist signals — one per ticker per calendar day (no duplicates)
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         for sig in trade_signals:
+            existing = db.query(SignalModel).filter(
+                SignalModel.ticker == sig.ticker,
+                SignalModel.created_at >= today_start,
+            ).first()
+            if existing:
+                logger.info(f"Signal for {sig.ticker} already exists today — skipping duplicate")
+                continue
             row = SignalModel(
                 ticker=sig.ticker,
                 signal=sig.signal.value,
@@ -81,14 +89,28 @@ def run_daily_pipeline():
             db.add(row)
         db.commit()
 
-        # 4. Check current position count before placing new trades
+        # 4. Auto take-profit: close positions that have reached stop_loss_pct gain
+        take_profit_pct = settings.get("stop_loss_pct", 2.0)
+        try:
+            open_positions = get_positions(db)
+            for pos in open_positions:
+                if pos["unrealized_plpc"] >= take_profit_pct:
+                    close_position(pos["ticker"], db)
+                    logger.info(f"Take-profit triggered for {pos['ticker']} (+{pos['unrealized_plpc']:.1f}%)")
+                elif pos["unrealized_plpc"] <= -take_profit_pct:
+                    close_position(pos["ticker"], db)
+                    logger.info(f"Stop-loss triggered for {pos['ticker']} ({pos['unrealized_plpc']:.1f}%)")
+        except Exception as e:
+            logger.error(f"Take-profit/stop-loss check failed: {e}")
+
+        # 5. Check current position count before placing new trades
         try:
             current_positions = get_positions(db)
             n_open = len(current_positions)
         except Exception:
             n_open = 0
 
-        # 5. Execute actionable signals
+        # 6. Execute actionable signals
         for sig in trade_signals:
             if sig.signal == Signal.HOLD:
                 continue

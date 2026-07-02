@@ -43,10 +43,21 @@ def health():
     return {"status": "ok"}
 
 
+_pipeline_running = False
+
 @app.post("/pipeline/run-now")
 def run_now():
-    """Manually trigger the daily pipeline (useful for testing)."""
+    """Manually trigger the daily pipeline — blocked if already running."""
+    global _pipeline_running
+    if _pipeline_running:
+        return {"message": "Pipeline already running — please wait"}
     import threading
-    t = threading.Thread(target=run_daily_pipeline, daemon=True)
-    t.start()
+    def _guarded():
+        global _pipeline_running
+        _pipeline_running = True
+        try:
+            run_daily_pipeline()
+        finally:
+            _pipeline_running = False
+    threading.Thread(target=_guarded, daemon=True).start()
     return {"message": "Pipeline triggered"}
